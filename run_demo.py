@@ -17,9 +17,9 @@ if __name__=='__main__':
   code_dir = os.path.dirname(os.path.realpath(__file__))
   parser.add_argument('--mesh_file', type=str, default=f'{code_dir}/demo_data/mustard0/mesh/textured_simple.obj')
   parser.add_argument('--test_scene_dir', type=str, default=f'{code_dir}/demo_data/mustard0')
-  parser.add_argument('--est_refine_iter', type=int, default=5)
+  parser.add_argument('--est_refine_iter', type=int, default=3)
   parser.add_argument('--track_refine_iter', type=int, default=2)
-  parser.add_argument('--debug', type=int, default=1)
+  parser.add_argument('--debug', type=int, default=0)
   parser.add_argument('--debug_dir', type=str, default=f'{code_dir}/debug')
   args = parser.parse_args()
 
@@ -43,13 +43,18 @@ if __name__=='__main__':
 
   reader = YcbineoatReader(video_dir=args.test_scene_dir, shorter_side=None, zfar=np.inf)
 
-  for i in range(len(reader.color_files)):
+  for i in range(150):
+  # for i in range(len(reader.color_files)):
     logging.info(f'i:{i}')
-    color = reader.get_color(i)
-    depth = reader.get_depth(i)
+    color = reader.get_color(0)
+    depth = reader.get_depth(0)
     if i==0:
       mask = reader.get_mask(0).astype(bool)
+      #pose = est.register(K=reader.K, rgb=color, depth=depth, ob_mask=mask, iteration=args.est_refine_iter)
+
+      start = time.time()
       pose = est.register(K=reader.K, rgb=color, depth=depth, ob_mask=mask, iteration=args.est_refine_iter)
+      print(f"running time: {time.time()-start}")
 
       if debug>=3:
         m = mesh.copy()
@@ -60,10 +65,14 @@ if __name__=='__main__':
         pcd = toOpen3dCloud(xyz_map[valid], color[valid])
         o3d.io.write_point_cloud(f'{debug_dir}/scene_complete.ply', pcd)
     else:
+      start = time.time()
       pose = est.track_one(rgb=color, depth=depth, K=reader.K, iteration=args.track_refine_iter)
+      print(f"running time: {time.time()-start}")
+    
+    print(f"pose: {pose}")
 
     os.makedirs(f'{debug_dir}/ob_in_cam', exist_ok=True)
-    np.savetxt(f'{debug_dir}/ob_in_cam/{reader.id_strs[i]}.txt', pose.reshape(4,4))
+    np.savetxt(f'{debug_dir}/ob_in_cam/{reader.id_strs[0]}.txt', pose.reshape(4,4))
 
     if debug>=1:
       center_pose = pose@np.linalg.inv(to_origin)
